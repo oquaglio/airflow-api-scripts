@@ -2,12 +2,28 @@
 
 # Export necessary environment variables
 MWAA_ENV_NAME=$MWAA_ENV_NAME
+AWS_REGION=$AWS_REGION
 
-# Get list of DAGs directly using AWS CLI
-aws mwaa list-dags --name "$MWAA_ENV_NAME" --query "dags[].{dag_id:dag_id,dag_display_name:dag_id,fileloc:fileloc,is_active:is_active,is_paused:is_paused,has_import_errors:has_import_errors}" --output json > dags_response.json
+# Get MWAA CLI token and Webserver hostname
+CLI_JSON=$(aws mwaa --region "$AWS_REGION" create-cli-token --name "$MWAA_ENV_NAME")
+CLI_TOKEN=$(echo $CLI_JSON | jq -r '.CliToken')
+WEB_SERVER_HOSTNAME=$(echo $CLI_JSON | jq -r '.WebServerHostname')
+
+if [ -z "$CLI_TOKEN" ] || [ -z "$WEB_SERVER_HOSTNAME" ]; then
+    echo "Error: Could not retrieve MWAA CLI token or Webserver hostname."
+    exit 1
+fi
+
+echo "MWAA Webserver Hostname: $WEB_SERVER_HOSTNAME"
+
+# Fetch DAG details using MWAA CLI token
+CLI_RESULTS=$(curl -s --request POST "https://$WEB_SERVER_HOSTNAME/aws_mwaa/cli" \
+    --header "Authorization: Bearer $CLI_TOKEN" \
+    --header "Content-Type: application/json" \
+    --data '{"cmd":"dags list --output json"}')
 
 if [ $? -ne 0 ]; then
-    echo "Error: Failed to retrieve DAGs using AWS CLI."
+    echo "Error: Failed to retrieve DAG details using MWAA CLI."
     exit 1
 fi
 
@@ -20,6 +36,6 @@ echo "Parsing DAG information..."
 
 echo "dag_id,dag_display_name,path,is_active,is_paused,has_import_errors" > dag_details.csv
 
-jq -r '.[] | [.dag_id, .dag_display_name, .fileloc, .is_active, .is_paused, .has_import_errors] | @csv' dags_response.json >> dag_details.csv
+echo "$CLI_RESULTS" | jq -r '.dags[] | [.dag_id, .dag_id, .fileloc, .is_active, .is_paused, .has_import_errors] | @csv' >> dag_details.csv
 
 echo "DAG details have been written to dag_details.csv."
