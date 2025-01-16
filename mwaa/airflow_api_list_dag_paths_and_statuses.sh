@@ -3,7 +3,7 @@
 # Export necessary environment variables
 MWAA_ENV_NAME=$MWAA_ENV_NAME
 MWAA_API_URL=$(aws mwaa get-environment --name "$MWAA_ENV_NAME" --query "Environment.AirflowDashboardUrl" --output text | sed 's/\/$//')
-MWAA_AUTH_TOKEN=$(aws mwaa create-web-token --name "$MWAA_ENV_NAME" --query "WebToken" --output text)
+MWAA_AUTH_TOKEN=$(aws mwaa create-web-login-token --name "$MWAA_ENV_NAME" --query "WebToken" --output text)
 
 if [ -z "$MWAA_API_URL" ] || [ -z "$MWAA_AUTH_TOKEN" ]; then
     echo "Error: Could not retrieve MWAA environment information."
